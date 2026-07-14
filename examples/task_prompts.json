@@ -1,0 +1,6 @@
+{
+  "coarse": "Is the face in the image is real or spoof?",
+  "attack": "What attack type of the face?",
+  "reasoning": "Why is the face in the picture real or spoof?",
+  "localization": "Can you locate the spoof area of the face image?"
+}

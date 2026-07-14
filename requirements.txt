@@ -1,0 +1,15 @@
+torch>=2.2.0
+torchvision
+transformers>=4.41.0
+accelerate
+peft
+deepspeed
+bitsandbytes
+einops
+einops-exts
+pillow
+numpy
+sentencepiece
+timm
+scikit-learn
+opencv-python

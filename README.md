@@ -1,32 +1,201 @@
-# FaceShield
-**FaceShield: Explainable Face Anti-Spoofing with Multimodal Large Language Models**
+﻿# FaceShield
 
-![Example Image](images/output.jpg)
+FaceShield is a face anti-spoofing (FAS) multimodal large language model built on the Bunny codebase. It supports four FAS tasks:
 
-> 代码将于近期开放（The code will be available soon）。
+- Coarse-grained classification: real vs. spoof
+- Fine-grained classification: attack type recognition
+- Reasoning: natural-language evidence for the decision
+- Attack localization: relative bounding boxes for spoof regions
 
----
+The model follows the paper design:
 
-## 数据集下载（Hugging Face）
+- **Spoof-Aware Vision Perception (SAVP)**: use the RGB face image together with an auxiliary spoof-aware image produced by local descriptors.
+- **Prompt-Guided Vision Token Masking (PVTM)**: compute visual-token/text-prompt similarity with SigLIP, keep the most prompt-relevant tokens, and randomly mask 5% of tokens from the remaining low-similarity 90% to improve generalization.
 
-FaceShield 数据集已发布在 Hugging Face Datasets：
 
-<a href="https://huggingface.co/datasets/wwhhyy/FaceShield">
-  <img src="https://huggingface.co/datasets/huggingface/brand-assets/resolve/main/hf-logo.png" alt="Hugging Face" style="height:1.5em; vertical-align:middle;">
-</a>
-&nbsp;
-<a href="https://huggingface.co/datasets/wwhhyy/FaceShield">https://huggingface.co/datasets/wwhhyy/FaceShield</a>
+## Installation
 
----
+```bash
+conda create -n faceshield python=3.10 -y
+conda activate faceshield
+pip install -r requirements.txt
+pip install -e .
+```
 
-## 隐私与数据获取说明
+The experiments used:
 
-由于人脸数据涉及隐私、安全与合规要求，**FaceShield 数据集不直接分发/包含任何可识别身份的人脸原始图片**。
+- PyTorch 2.2.2 + CUDA 11.8
+- Transformers 4.41.0.dev0
+- SigLIP SO400M patch14 384 vision tower
+- Phi-3-mini-4k-instruct language model
 
-为复现实验，数据集所涉及的图像可从以下三个原始公开数据集中自行获取（请务必遵守各自的许可协议、下载条款与使用限制）：
+## Model And Data Preparation
 
-- **WMCA**
-- **PADISI**
-- **SiW-Mv2**
+Download or prepare the following paths before running training or inference. 
 
-感谢 **WMCA**、**PADISI** 与 **SiW-Mv2** 数据集的作者与维护者为人脸活体检测研究提供的重要资源。
+```text
+/path/to/Phi-3-mini-4k-instruct
+/path/to/siglip-so400m-patch14-384
+/path/to/pretrained/mm_projector.bin
+/path/to/faceshield_train.json
+/path/to/rgb_images
+/path/to/spoof_aware_images
+```
+
+The base LLM, SigLIP vision tower, and projector/checkpoint preparation follow the Bunny-style workflow. If you need
+projector weights or base-model setup details, refer to the Bunny project:
+
+- https://github.com/BAAI-DCAI/Bunny
+
+Training samples follow the Bunny multi-image instruction format:
+
+```json
+[
+  {
+    "id": "sample_1",
+    "image": ["rgb/example.jpg", "sav/example.jpg"],
+    "conversations": [
+      {"from": "human", "value": "<image 1>\n<image 2>\nIs the face real or spoof?"},
+      {"from": "gpt", "value": "The face is spoof."}
+    ]
+  }
+]
+```
+
+`image[0]` is the RGB face image and `image[1]` is the SAVP auxiliary image.
+
+## Quick Demo
+
+```bash
+python demo.py \
+  --model-path /path/to/FaceShield-or-merged-checkpoint \
+  --rgb-image examples/rgb.jpg \
+  --sav-image examples/sav.jpg \
+  --task coarse
+```
+
+Supported demo tasks:
+
+```text
+coarse       real/spoof classification
+attack       attack type recognition
+reasoning    explainable FAS reasoning
+localization spoof region localization
+```
+
+### Task Prompt Examples
+
+The following prompts are used by `demo.py` and can also be reused in custom evaluation scripts. The PVTM branch uses
+the same prompt through `texts=prompt`.
+
+| Task | Prompt example | Expected output style |
+| --- | --- | --- |
+| Coarse-grained classification | `Is the face in the image is real or spoof?` | `real` or `spoof` |
+| Fine-grained attack classification | `What attack type of the face?` | attack type such as `print attack`, `replay attack`, `glasses attack`, or `real` |
+| Reasoning | `Why is the face in the picture real or spoof?` | short explanation plus final decision |
+| Attack localization | `Can you locate the spoof area of the face image?` | relative boxes |
+
+Example commands:
+
+```bash
+python demo.py \
+  --model-path /path/to/FaceShield-or-merged-checkpoint \
+  --rgb-image /path/to/rgb.jpg \
+  --sav-image /path/to/spoof_aware.jpg \
+  --task coarse
+
+python demo.py \
+  --model-path /path/to/FaceShield-or-merged-checkpoint \
+  --rgb-image /path/to/rgb.jpg \
+  --sav-image /path/to/spoof_aware.jpg \
+  --task attack
+
+python demo.py \
+  --model-path /path/to/FaceShield-or-merged-checkpoint \
+  --rgb-image /path/to/rgb.jpg \
+  --sav-image /path/to/spoof_aware.jpg \
+  --task reasoning \
+  --max-new-tokens 512
+
+python demo.py \
+  --model-path /path/to/FaceShield-or-merged-checkpoint \
+  --rgb-image /path/to/rgb.jpg \
+  --sav-image /path/to/spoof_aware.jpg \
+  --task localization
+```
+
+You can also pass a custom prompt:
+
+```bash
+python demo.py \
+  --model-path /path/to/model \
+  --rgb-image examples/rgb.jpg \
+  --sav-image examples/sav.jpg \
+  --prompt "Can you locate the spoof area of the face image?"
+```
+
+## Training
+
+Edit environment variables in the shell command or export them before launch:
+
+```bash
+export BASE_LLM=/path/to/Phi-3-mini-4k-instruct
+export VISION_TOWER=/path/to/siglip-so400m-patch14-384
+export TRAIN_JSON=/path/to/faceshield_train.json
+export IMAGE_FOLDER=/path/to/image/root
+export PRETRAIN_MM_PROJECTOR=/path/to/mm_projector.bin
+export OUTPUT_DIR=./checkpoints-phi-3/faceshield-lora
+
+bash script/train/finetune_lora.sh
+```
+
+For projector pretraining:
+
+```bash
+export BASE_LLM=/path/to/Phi-3-mini-4k-instruct
+export VISION_TOWER=/path/to/siglip-so400m-patch14-384
+export TRAIN_JSON=/path/to/faceshield_pretrain.json
+export IMAGE_FOLDER=/path/to/image/root
+export OUTPUT_DIR=./checkpoints-pretrain/faceshield-pretrain
+
+bash script/train/pretrain.sh
+```
+
+## Inference Notes
+
+PVTM needs the text prompt during inference. The demo and model path pass `texts=prompt` into `model.generate(...)`. If you build your own inference script, keep this argument:
+
+```python
+output_ids = model.generate(
+    input_ids,
+    images=image_tensor,
+    texts=prompt,
+    max_new_tokens=128,
+)
+```
+
+Without `texts`, the model still runs, but the prompt-guided token masking branch falls back to unmasked visual features.
+
+## Repository Structure
+
+```text
+bunny/                    Core model, training, data, and utility code
+script/deepspeed/          DeepSpeed configs
+script/train/              FaceShield pretraining and LoRA SFT launch scripts
+script/merge_lora_weights.py
+                           LoRA merge utility
+demo.py                    Single-sample FaceShield inference demo
+requirements.txt           Python dependencies
+```
+
+## Citation
+
+```bibtex
+@inproceedings{wang2026faceshield,
+  title={FaceShield: Explainable Face Anti-Spoofing with Multimodal Large Language Models},
+  author={Wang, Hongyang and Shi, Yichen and Tao, Zhuofu and Gao, Yuhao and Zhang, Liepiao and Lin, Xun and Feng, Jun and Yuan, Xiaochen and Yu, Zitong and Cao, Xiaochun},
+  booktitle={AAAI},
+  year={2026}
+}
+```
+
