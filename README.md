@@ -9,12 +9,6 @@ FaceShield is a face anti-spoofing (FAS) multimodal large language model built o
 - Reasoning: natural-language evidence for the decision
 - Attack localization: relative bounding boxes for spoof regions
 
-The model follows the paper design:
-
-- **Spoof-Aware Vision Perception (SAVP)**: use the RGB face image together with an auxiliary spoof-aware image produced by local descriptors.
-- **Prompt-Guided Vision Token Masking (PVTM)**: compute visual-token/text-prompt similarity with SigLIP, keep the most prompt-relevant tokens, and randomly mask 5% of tokens from the remaining low-similarity 90% to improve generalization.
-
-
 ## Installation
 
 ```bash
@@ -175,21 +169,6 @@ export OUTPUT_DIR=./checkpoints-pretrain/faceshield-pretrain
 
 bash script/train/pretrain.sh
 ```
-
-## Inference Notes
-
-PVTM needs the text prompt during inference. The demo and model path pass `texts=prompt` into `model.generate(...)`. If you build your own inference script, keep this argument:
-
-```python
-output_ids = model.generate(
-    input_ids,
-    images=image_tensor,
-    texts=prompt,
-    max_new_tokens=128,
-)
-```
-
-Without `texts`, the model still runs, but the prompt-guided token masking branch falls back to unmasked visual features.
 
 ## Repository Structure
 
