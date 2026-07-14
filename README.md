@@ -1,5 +1,7 @@
 ﻿# FaceShield
 
+![FaceShield Overview](images/output.jpg)
+
 FaceShield is a face anti-spoofing (FAS) multimodal large language model built on the Bunny codebase. It supports four FAS tasks:
 
 - Coarse-grained classification: real vs. spoof
@@ -29,6 +31,19 @@ The experiments used:
 - SigLIP SO400M patch14 384 vision tower
 - Phi-3-mini-4k-instruct language model
 
+## Dataset Release
+
+FaceShield data annotations are available on Hugging Face Datasets:
+
+- https://huggingface.co/datasets/wwhhyy/FaceShield
+
+Because face data involves privacy, security, and compliance requirements, this repository and the released annotations do not redistribute identifiable raw face images. To reproduce the experiments, please obtain the original images from the corresponding public datasets and follow their licenses, download terms, and usage restrictions:
+
+- WMCA
+- PADISI
+- SiW-Mv2
+
+We thank the authors and maintainers of WMCA, PADISI, and SiW-Mv2 for providing important resources for face anti-spoofing research.
 ## Model And Data Preparation
 
 Download or prepare the following paths before running training or inference. 
@@ -198,4 +213,5 @@ requirements.txt           Python dependencies
   year={2026}
 }
 ```
+
 
